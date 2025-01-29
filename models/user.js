@@ -1,12 +1,11 @@
+const { DataTypes } = require('sequelize');
+
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
-    firstName: {
-      type: DataTypes.STRING,
-      allowNull: false
-    },
-    lastName: {
-      type: DataTypes.STRING,
-      allowNull: false
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
     },
     username: {
       type: DataTypes.STRING,
@@ -16,10 +15,7 @@ module.exports = (sequelize, DataTypes) => {
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true,
-      set(value) {
-        this.setDataValue('email', value.toLowerCase());
-      }
+      unique: true
     },
     password: {
       type: DataTypes.STRING,
@@ -28,22 +24,20 @@ module.exports = (sequelize, DataTypes) => {
     department: {
       type: DataTypes.STRING,
       allowNull: true
-    },
-    profilePicture: {
-      type: DataTypes.STRING,
-      allowNull: true
     }
+  }, {
+    tableName: 'Users'  // Make sure this matches your actual table name
   });
 
-  User.associate = function(models) {
-    User.hasMany(models.Friend, { as: 'sentFriendRequests', foreignKey: 'senderId' });
-    User.hasMany(models.Friend, { as: 'receivedFriendRequests', foreignKey: 'receiverId' });
-    if (models.Post) {
-      User.hasMany(models.Post);
-    }
-    if (models.Comment) {
-      User.hasMany(models.Comment);
-    }
+  User.associate = (models) => {
+    User.hasMany(models.FriendRequest, {
+      foreignKey: 'receiverId',
+      as: 'receivedRequests'
+    });
+    User.hasMany(models.FriendRequest, {
+      foreignKey: 'senderId',
+      as: 'sentRequests'
+    });
   };
 
   return User;

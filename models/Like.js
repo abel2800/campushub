@@ -1,5 +1,5 @@
 module.exports = (sequelize, DataTypes) => {
-  const Comment = sequelize.define('Comment', {
+  const Like = sequelize.define('Like', {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -20,26 +20,28 @@ module.exports = (sequelize, DataTypes) => {
         model: 'Users',
         key: 'id'
       }
-    },
-    content: {
-      type: DataTypes.TEXT,
-      allowNull: false
     }
   }, {
-    tableName: 'comments',
-    timestamps: true
+    tableName: 'likes',
+    timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ['postId', 'userId']
+      }
+    ]
   });
 
-  Comment.associate = (models) => {
-    Comment.belongsTo(models.User, {
+  Like.associate = (models) => {
+    Like.belongsTo(models.User, {
       foreignKey: 'userId',
       as: 'user'
     });
-    Comment.belongsTo(models.Post, {
+    Like.belongsTo(models.Post, {
       foreignKey: 'postId',
       as: 'post'
     });
   };
 
-  return Comment;
+  return Like;
 }; 

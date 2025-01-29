@@ -1,11 +1,13 @@
 const express = require('express');
-const User = require('../models/user');
-const { getAllUsers, createUser, getUserById } = require('../controllers/userController');
 const router = express.Router();
+const { searchUsers } = require('../controllers/userController');
+const authMiddleware = require('../middleware/authMiddleware');
 
-// GET endpoint to fetch all users
-router.get('/:id', getUserById);
-router.get('/', getAllUsers);
-router.post('/', createUser);
-  
+// Search users route
+router.get('/search', authMiddleware, (req, res, next) => {
+  console.log('Search route hit with query:', req.query);
+  console.log('Authenticated user:', req.user);
+  searchUsers(req, res).catch(next);
+});
+
 module.exports = router;

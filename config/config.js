@@ -1,27 +1,28 @@
 require('dotenv').config();
 
-module.exports = {
+const config = {
   development: {
-    username: process.env.DB_USERNAME || 'postgres',
-    password: process.env.DB_PASSWORD || '1992',
-    database: process.env.DB_DATABASE || 'campushub',
-    host: process.env.DB_HOST || 'localhost',
+    username: 'postgres',  // hardcoded for now
+    password: '1992',      // hardcoded for now
+    database: 'campushub',
+    host: 'localhost',
     dialect: 'postgres',
-    port: process.env.DB_PORT || 5432,
-    logging: console.log // Enable logging to see SQL queries
+    logging: false
   },
   test: {
-    username: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE,
+    username: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
     host: process.env.DB_HOST,
     dialect: 'postgres'
   },
   production: {
-    username: process.env.DB_USERNAME,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_DATABASE,
+    username: process.env.DB_USER,
+    password: process.env.DB_PASS,
+    database: process.env.DB_NAME,
     host: process.env.DB_HOST,
     dialect: 'postgres'
   }
-}; 
+};
+
+module.exports = config; 

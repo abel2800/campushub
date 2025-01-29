@@ -1,139 +1,179 @@
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../models');
+const { User } = require('../models');
+const { Op } = require('sequelize');
 
-// Register new user
-const register = async (req, res) => {
-  try {
-    const { firstName, lastName, username, email, password, department } = req.body;
-    const normalizedEmail = email.toLowerCase(); // Normalize email to lowercase
-    console.log('Registration attempt:', { username, email: normalizedEmail });
+const authController = {
+  // Register new user
+  register: async (req, res) => {
+    try {
+      const { username, email, password, department } = req.body;
+      console.log('Registration attempt:', { username, email, department }); // Debug log
 
-    // Check if email exists (case-insensitive)
-    const existingEmail = await db.User.findOne({
-      where: db.Sequelize.where(
-        db.Sequelize.fn('LOWER', db.Sequelize.col('email')),
-        normalizedEmail
-      )
-    });
+      // Check if user already exists
+      const existingUser = await User.findOne({
+        where: { email: email.toLowerCase() }
+      });
 
-    if (existingEmail) {
-      console.log('Email already exists:', normalizedEmail);
-      return res.status(400).json({ message: 'Email is already registered' });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email already registered'
+        });
+      }
+
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Create user
+      const user = await User.create({
+        username,
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        department
+      });
+
+      console.log('User created:', user.username); // Debug log
+
+      // Generate token
+      const token = jwt.sign(
+        { id: user.id },
+        process.env.JWT_SECRET || 'your-fallback-secret',
+        { expiresIn: '24h' }
+      );
+
+      // Remove password from response
+      const { password: _, ...userWithoutPassword } = user.toJSON();
+
+      res.status(201).json({
+        success: true,
+        message: 'Account created successfully',
+        user: userWithoutPassword,
+        token
+      });
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error creating account',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
+  },
 
-    // Check if username exists (case-insensitive)
-    const existingUsername = await db.User.findOne({
-      where: db.Sequelize.where(
-        db.Sequelize.fn('LOWER', db.Sequelize.col('username')),
-        username.toLowerCase()
-      )
-    });
+  // Login user
+  login: async (req, res) => {
+    try {
+      const { email, password } = req.body;
 
-    if (existingUsername) {
-      console.log('Username already exists:', username);
-      return res.status(400).json({ message: 'Username is already taken' });
+      // Validation
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email and password are required'
+        });
+      }
+
+      // Find user
+      const user = await User.findOne({
+        where: { email: email.toLowerCase() },
+        attributes: ['id', 'username', 'email', 'password', 'department']
+      });
+
+      // Debug log
+      console.log('Login attempt:', {
+        emailProvided: email,
+        userFound: !!user
+      });
+
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password'
+        });
+      }
+
+      // Compare password
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      
+      // Debug log
+      console.log('Password check:', {
+        isValid: isValidPassword
+      });
+
+      if (!isValidPassword) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password'
+        });
+      }
+
+      // Create token
+      const token = jwt.sign(
+        { id: user.id },
+        process.env.JWT_SECRET || 'your-fallback-secret',
+        { expiresIn: '24h' }
+      );
+
+      // Remove sensitive data
+      const { password: _, ...userWithoutPassword } = user.toJSON();
+
+      res.json({
+        success: true,
+        token,
+        user: userWithoutPassword
+      });
+
+    } catch (error) {
+      console.error('Login error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
+  },
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+  // Get current user
+  getMe: async (req, res) => {
+    try {
+      const user = await db.User.findByPk(req.user.id, {
+        attributes: { exclude: ['password'] }
+      });
+      res.json(user);
+    } catch (error) {
+      console.error('Get user error:', error);
+      res.status(500).json({ message: 'Error fetching user data' });
+    }
+  },
 
-    // Create user with normalized email
-    const user = await db.User.create({
-      firstName,
-      lastName,
-      username,
-      email: normalizedEmail, // Store email in lowercase
-      password: hashedPassword,
-      department
-    });
+  // Verify token and get user data
+  verifyToken: async (req, res) => {
+    try {
+      const token = req.header('Authorization')?.replace('Bearer ', '');
+      
+      if (!token) {
+        return res.status(401).json({ message: 'No token provided' });
+      }
 
-    console.log('User created successfully:', user.id);
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findOne({
+        where: { id: decoded.id },
+        attributes: ['id', 'username', 'email', 'avatarUrl', 'department']
+      });
 
-    res.status(201).json({
-      message: 'Registration successful! Please login.',
-      success: true
-    });
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
 
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ 
-      message: 'Error creating account', 
-      error: error.message 
-    });
+      res.json({ user });
+    } catch (error) {
+      console.error('Token verification error:', error);
+      res.status(401).json({ message: 'Invalid token' });
+    }
   }
 };
 
-// Login user
-const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const normalizedEmail = email.toLowerCase(); // Normalize email to lowercase
-    console.log('Login attempt:', { email: normalizedEmail });
-
-    // Find user by email (case-insensitive)
-    const user = await db.User.findOne({
-      where: db.Sequelize.where(
-        db.Sequelize.fn('LOWER', db.Sequelize.col('email')),
-        normalizedEmail
-      )
-    });
-
-    if (!user) {
-      console.log('User not found:', normalizedEmail);
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
-
-    // Check password
-    const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      console.log('Invalid password for user:', normalizedEmail);
-      return res.status(401).json({ message: 'Invalid email or password' });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    console.log('Login successful:', user.id);
-
-    res.json({
-      message: 'Login successful',
-      user: {
-        id: user.id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        username: user.username,
-        department: user.department
-      },
-      token
-    });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ message: 'Error logging in' });
-  }
-};
-
-// Get current user
-const getMe = async (req, res) => {
-  try {
-    const user = await db.User.findByPk(req.user.id, {
-      attributes: { exclude: ['password'] }
-    });
-    res.json(user);
-  } catch (error) {
-    console.error('Get user error:', error);
-    res.status(500).json({ message: 'Error fetching user data' });
-  }
-};
-
-module.exports = {
-  register,
-  login,
-  getMe
-}; 
+module.exports = authController; 

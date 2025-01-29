@@ -1,11 +1,11 @@
 module.exports = (sequelize, DataTypes) => {
   const Friend = sequelize.define('Friend', {
-    status: {
-      type: DataTypes.ENUM('pending', 'accepted'),
-      defaultValue: 'pending',
-      allowNull: false
+    id: {
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true
     },
-    senderId: {
+    userId: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
@@ -13,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     },
-    receiverId: {
+    friendId: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
@@ -21,11 +21,26 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id'
       }
     }
+  }, {
+    tableName: 'Friends',
+    timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ['userId', 'friendId']
+      }
+    ]
   });
 
-  Friend.associate = function(models) {
-    Friend.belongsTo(models.User, { as: 'sender', foreignKey: 'senderId' });
-    Friend.belongsTo(models.User, { as: 'receiver', foreignKey: 'receiverId' });
+  Friend.associate = (models) => {
+    Friend.belongsTo(models.User, {
+      foreignKey: 'userId',
+      as: 'user'
+    });
+    Friend.belongsTo(models.User, {
+      foreignKey: 'friendId',
+      as: 'friend'
+    });
   };
 
   return Friend;
