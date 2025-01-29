@@ -3,23 +3,16 @@ const { User } = require('../models');
 
 const authMiddleware = async (req, res, next) => {
   try {
-    console.log('Headers:', req.headers);
+    const token = req.headers.authorization?.split(' ')[1];
     
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('No valid auth header:', authHeader);
+    if (!token) {
       return res.status(401).json({ message: 'No token provided' });
     }
 
-    const token = authHeader.split(' ')[1];
-    console.log('Token received:', token);
-    
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('Decoded token:', decoded);
-    
     const user = await User.findByPk(decoded.id);
+
     if (!user) {
-      console.log('User not found for id:', decoded.id);
       return res.status(401).json({ message: 'User not found' });
     }
 
@@ -27,10 +20,13 @@ const authMiddleware = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
-    res.status(401).json({ 
-      message: 'Invalid token',
-      error: error.message
-    });
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Token expired' });
+    }
+    res.status(500).json({ message: 'Server error' });
   }
 };
 

@@ -5,15 +5,15 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true
     },
-    chat_id: {
+    sender_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Chats',
+        model: 'Users',
         key: 'id'
       }
     },
-    sender_id: {
+    receiver_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
@@ -27,12 +27,19 @@ module.exports = (sequelize, DataTypes) => {
     }
   }, {
     tableName: 'Messages',
+    timestamps: true,
     underscored: true
   });
 
   Message.associate = (models) => {
-    Message.belongsTo(models.Chat, { foreignKey: 'chat_id' });
-    Message.belongsTo(models.User, { as: 'sender', foreignKey: 'sender_id' });
+    Message.belongsTo(models.User, {
+      as: 'sender',
+      foreignKey: 'sender_id'
+    });
+    Message.belongsTo(models.User, {
+      as: 'receiver',
+      foreignKey: 'receiver_id'
+    });
   };
 
   return Message;
