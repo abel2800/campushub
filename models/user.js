@@ -30,13 +30,16 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   User.associate = (models) => {
-    User.hasMany(models.FriendRequest, {
-      foreignKey: 'receiverId',
-      as: 'receivedRequests'
+    // User can have many friends (users who sent friend requests)
+    User.hasMany(models.Friend, {
+      foreignKey: 'userid',
+      as: 'sentFriendRequests'
     });
-    User.hasMany(models.FriendRequest, {
-      foreignKey: 'senderId',
-      as: 'sentRequests'
+
+    // User can have many friends (users who received friend requests)
+    User.hasMany(models.Friend, {
+      foreignKey: 'friendid',
+      as: 'receivedFriendRequests'
     });
   };
 
