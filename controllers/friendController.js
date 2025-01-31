@@ -25,66 +25,41 @@ const friendController = {
   },
 
   // Accept friend request
-  acceptRequest: async (req, res) => {
+  acceptFriendRequest: async (req, res) => {
     try {
-      const requestId = req.params.requestId;
       const userId = req.user.id;
+      const { requestId } = req.params;
 
-      // Find and update the request
-      const request = await FriendRequest.findOne({
+      const friendRequest = await Friend.findOne({
         where: {
           id: requestId,
-          receiverId: userId,
+          friendid: userId,
           status: 'pending'
         }
       });
 
-      if (!request) {
+      if (!friendRequest) {
         return res.status(404).json({ message: 'Friend request not found' });
       }
 
-      // Update request status
-      await request.update({ status: 'accepted' });
+      await friendRequest.update({ status: 'accepted' });
 
-      // Create two-way friendship
+      // Create reverse friendship
       await Friend.create({
-        userId: request.receiverId,
-        friendId: request.senderId
+        userid: friendRequest.friendid,
+        friendid: friendRequest.userid,
+        status: 'accepted'
       });
 
-      await Friend.create({
-        userId: request.senderId,
-        friendId: request.receiverId
-      });
-
-      // Get sender's username for notification
-      const sender = await User.findByPk(request.senderId);
-      const receiver = await User.findByPk(request.receiverId);
-
-      // Create notification
-      await Notification.create({
-        userId: request.senderId,
-        type: 'FRIEND_REQUEST_ACCEPTED',
-        content: `${receiver.username} accepted your friend request`,
-        read: false
-      });
-
-      res.json({ 
-        message: 'Friend request accepted',
-        friend: {
-          id: sender.id,
-          username: sender.username
-        }
-      });
-
+      res.json({ message: 'Friend request accepted' });
     } catch (error) {
-      console.error('Accept request error:', error);
-      res.status(500).json({ message: 'Server error' });
+      console.error('Accept friend request error:', error);
+      res.status(500).json({ message: 'Error accepting friend request' });
     }
   },
 
   // Reject friend request
-  rejectRequest: async (req, res) => {
+  rejectFriendRequest: async (req, res) => {
     try {
       const requestId = req.params.requestId;
       const userId = req.user.id;
@@ -110,54 +85,36 @@ const friendController = {
   },
 
   // Send friend request
-  sendRequest: async (req, res) => {
+  sendFriendRequest: async (req, res) => {
     try {
-      const { receiverId } = req.body;
       const senderId = req.user.id;
+      const { receiverId } = req.body;
 
-      if (senderId === receiverId) {
-        return res.status(400).json({ message: 'Cannot send friend request to yourself' });
-      }
-
-      // Check if request already exists
-      const existingRequest = await FriendRequest.findOne({
-        where: {
-          [Op.or]: [
-            { senderId, receiverId },
-            { senderId: receiverId, receiverId: senderId }
-          ],
-          status: 'pending'
-        }
-      });
-
-      if (existingRequest) {
-        return res.status(400).json({ message: 'Friend request already exists' });
-      }
-
-      // Check if they're already friends
+      // Check if friendship already exists
       const existingFriendship = await Friend.findOne({
         where: {
           [Op.or]: [
-            { userId: senderId, friendId: receiverId },
-            { userId: receiverId, friendId: senderId }
+            { userid: senderId, friendid: receiverId },
+            { userid: receiverId, friendid: senderId }
           ]
         }
       });
 
       if (existingFriendship) {
-        return res.status(400).json({ message: 'Already friends' });
+        return res.status(400).json({ message: 'Friendship already exists' });
       }
 
-      const request = await FriendRequest.create({
-        senderId,
-        receiverId,
+      // Create friend request
+      const friendRequest = await Friend.create({
+        userid: senderId,
+        friendid: receiverId,
         status: 'pending'
       });
 
-      res.json({ message: 'Friend request sent', request });
+      res.json({ message: 'Friend request sent successfully', friendRequest });
     } catch (error) {
-      console.error('Send request error:', error);
-      res.status(500).json({ message: 'Server error' });
+      console.error('Send friend request error:', error);
+      res.status(500).json({ message: 'Error sending friend request' });
     }
   },
 
@@ -165,9 +122,15 @@ const friendController = {
   getFriends: async (req, res) => {
     try {
       const userId = req.user.id;
+      console.log('Getting friends for user:', userId);
 
       const friends = await Friend.findAll({
-        where: { userId },
+        where: {
+          [Op.or]: [
+            { userid: userId },
+            { friendid: userId }
+          ]
+        },
         include: [{
           model: User,
           as: 'friend',
@@ -175,13 +138,26 @@ const friendController = {
         }]
       });
 
-      // Log the response for debugging
-      console.log('Friends response:', JSON.stringify(friends, null, 2));
+      console.log('Raw friends data:', friends);
 
-      res.json(friends);
+      // Transform the results to always show the other user's info
+      const transformedFriends = friends.map(friendship => ({
+        id: friendship.id,
+        friend: {
+          id: friendship.userid === userId ? friendship.friendid : friendship.userid,
+          username: friendship.friend.username,
+          department: friendship.friend.department
+        }
+      }));
+
+      console.log('Transformed friends:', transformedFriends);
+      res.json(transformedFriends);
     } catch (error) {
       console.error('Get friends error:', error);
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ 
+        message: 'Error getting friends list',
+        error: error.message 
+      });
     }
   },
 
@@ -194,8 +170,8 @@ const friendController = {
       await Friend.destroy({
         where: {
           [Op.or]: [
-            { userId, friendId },
-            { userId: friendId, friendId: userId }
+            { userid: userId, friendid: friendId },
+            { userid: friendId, friendid: userId }
           ]
         }
       });

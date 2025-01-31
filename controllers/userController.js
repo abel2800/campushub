@@ -38,16 +38,24 @@ const createUser = async (req, res) => {
 const searchUsers = async (req, res) => {
   try {
     const { query } = req.query;
-    const currentUserId = req.user.id;
+    const currentUserId = req.user.id; // Get current user's ID from auth
 
-    console.log('Search query:', query);
-    console.log('Current user:', currentUserId);
+    // Get list of friend IDs for the current user
+    const friendships = await Friend.findAll({
+      where: {
+        [Op.or]: [
+          { userid: currentUserId },
+          { friendid: currentUserId }
+        ]
+      }
+    });
 
-    if (!query || query.trim().length < 1) {
-      return res.json([]);
-    }
+    // Extract friend IDs from both userid and friendid columns
+    const friendIds = friendships.map(f => 
+      f.userid === currentUserId ? f.friendid : f.userid
+    );
 
-    // Find users matching the search query
+    // Search users excluding current user and their friends
     const users = await User.findAll({
       where: {
         [Op.and]: [
@@ -58,56 +66,15 @@ const searchUsers = async (req, res) => {
           },
           {
             id: {
-              [Op.ne]: currentUserId
+              [Op.notIn]: [currentUserId, ...friendIds]
             }
           }
         ]
       },
-      attributes: ['id', 'username', 'department']
+      limit: 10
     });
 
-    // Get only friend requests sent by the current user
-    const sentRequests = await FriendRequest.findAll({
-      where: {
-        senderId: currentUserId,
-        receiverId: users.map(u => u.id),
-        status: 'pending'
-      },
-      raw: true
-    });
-
-    // Get existing friendships
-    const friendships = await Friend.findAll({
-      where: {
-        [Op.or]: [
-          {
-            userId: currentUserId,
-            friendId: users.map(u => u.id)
-          },
-          {
-            userId: users.map(u => u.id),
-            friendId: currentUserId
-          }
-        ]
-      },
-      raw: true
-    });
-
-    // Format users with request and friendship status
-    const formattedUsers = users.map(user => ({
-      id: user.id,
-      username: user.username,
-      department: user.department,
-      requestSent: sentRequests.some(fr => fr.receiverId === user.id),
-      isFriend: friendships.some(f => 
-        (f.userId === currentUserId && f.friendId === user.id) ||
-        (f.userId === user.id && f.friendId === currentUserId)
-      )
-    }));
-
-    console.log('Formatted users:', formattedUsers);
-    res.json(formattedUsers);
-
+    res.json(users);
   } catch (error) {
     console.error('Search users error:', error);
     res.status(500).json({ message: 'Error searching users' });
