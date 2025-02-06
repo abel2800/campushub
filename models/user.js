@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+'use strict';
 
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
@@ -15,7 +15,10 @@ module.exports = (sequelize, DataTypes) => {
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true
+      unique: true,
+      validate: {
+        isEmail: true
+      }
     },
     password: {
       type: DataTypes.STRING,
@@ -24,23 +27,23 @@ module.exports = (sequelize, DataTypes) => {
     department: {
       type: DataTypes.STRING,
       allowNull: true
+    },
+    avatar: {
+      type: DataTypes.STRING,
+      allowNull: true
     }
   }, {
-    tableName: 'Users'  // Make sure this matches your actual table name
+    tableName: 'Users',
+    timestamps: true
   });
 
-  User.associate = (models) => {
-    // User can have many friends (users who sent friend requests)
-    User.hasMany(models.Friend, {
-      foreignKey: 'userid',
-      as: 'sentFriendRequests'
-    });
-
-    // User can have many friends (users who received friend requests)
-    User.hasMany(models.Friend, {
-      foreignKey: 'friendid',
-      as: 'receivedFriendRequests'
-    });
+  User.associate = function(models) {
+    User.hasMany(models.Course, { foreignKey: 'instructorId', as: 'courses' });
+    User.belongsToMany(models.Course, { through: 'Enrollments', as: 'enrolledCourses' });
+    User.hasMany(models.Story, { foreignKey: 'userId', as: 'stories' });
+    User.hasMany(models.Chat, { foreignKey: 'user1Id', as: 'chatsInitiated' });
+    User.hasMany(models.Chat, { foreignKey: 'user2Id', as: 'chatsReceived' });
+    User.hasMany(models.Message, { foreignKey: 'senderId', as: 'messages' });
   };
 
   return User;
