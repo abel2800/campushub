@@ -11,6 +11,8 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const authMiddleware = require('./middleware/authMiddleware');
 const jwt = require('jsonwebtoken');
+const path = require('path');
+const courseRoutes = require('./routes/courseRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -32,12 +34,16 @@ app.use(cors({
 }));
 app.use(express.json()); // Parse JSON request bodies
 
+// Serve static files from the "public" directory
+app.use('/courses', express.static(path.join(__dirname, '../public/courses')));
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/friends', friendRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/courses', courseRoutes);
 
 // Socket.IO middleware for authentication
 io.use((socket, next) => {

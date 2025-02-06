@@ -8,48 +8,51 @@ const friendController = require('../controllers/friendController');
 // Apply auth middleware to all routes
 router.use(auth);
 
-// Search users by username or department
+// Search users route (make sure this is the first route)
 router.get('/search', async (req, res) => {
   try {
     const { query } = req.query;
-    const userId = req.user.id;
+    const currentUserId = req.user.id;
 
-    const friends = await Friend.findAll({
+    console.log('Search endpoint hit:', { query, currentUserId });
+
+    const users = await User.findAll({
       where: {
-        [Op.or]: [
-          { userid: userId },
-          { friendid: userId }
-        ],
-        status: 'accepted'
+        [Op.and]: [
+          {
+            username: {
+              [Op.iLike]: `%${query}%`
+            }
+          },
+          {
+            id: {
+              [Op.ne]: currentUserId
+            }
+          }
+        ]
       },
-      include: [{
-        model: User,
-        as: 'friend',
-        where: {
-          [Op.or]: [
-            { username: { [Op.iLike]: `%${query}%` } },
-            { department: { [Op.iLike]: `%${query}%` } }
-          ]
-        },
-        attributes: ['id', 'username', 'department']
-      }]
+      attributes: ['id', 'username', 'department', 'avatar']
     });
 
-    const transformedFriends = friends.map(friendship => ({
-      id: friendship.id,
-      friend: {
-        id: friendship.userid === userId ? friendship.friendid : friendship.userid,
-        username: friendship.friend.username,
-        department: friendship.friend.department
-      }
-    }));
-
-    res.json(transformedFriends);
+    console.log('Found users:', users);
+    res.json(users);
   } catch (error) {
-    console.error('Search friends error:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Search error:', error);
+    res.status(500).json({ message: 'Error searching users' });
   }
 });
+
+// Send friend request
+router.post('/request', friendController.sendFriendRequest);
+
+// Get pending friend requests
+router.get('/requests/pending', friendController.getPendingRequests);
+
+// Accept friend request
+router.post('/request/:requestId/accept', friendController.acceptFriendRequest);
+
+// Get friends list
+router.get('/list', friendController.getFriends);
 
 // Get all friends
 router.get('/', async (req, res) => {
@@ -83,58 +86,6 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Get friends error:', error);
     res.status(500).json({ message: 'Error getting friends list' });
-  }
-});
-
-// Send friend request
-router.post('/request/:userId', async (req, res) => {
-  try {
-    const senderId = req.user.id;
-    const receiverId = req.params.userId;
-
-    // Check if friendship already exists
-    const existingFriendship = await Friend.findOne({
-      where: {
-        [Op.or]: [
-          { userid: senderId, friendid: receiverId },
-          { userid: receiverId, friendid: senderId }
-        ]
-      }
-    });
-
-    if (existingFriendship) {
-      return res.status(400).json({ message: 'Friend request already exists' });
-    }
-
-    const friendship = await Friend.create({
-      userid: senderId,
-      friendid: receiverId,
-      status: 'pending'
-    });
-
-    res.json(friendship);
-  } catch (error) {
-    console.error('Send friend request error:', error);
-    res.status(500).json({ message: 'Error sending friend request' });
-  }
-});
-
-// Get pending friend requests
-router.get('/requests/pending', friendController.getPendingRequests);
-
-// Accept friend request
-router.post('/accept/:requestId', async (req, res) => {
-  try {
-    const friendship = await Friend.findByPk(req.params.requestId);
-    if (!friendship) {
-      return res.status(404).json({ message: 'Friend request not found' });
-    }
-
-    await friendship.update({ status: 'accepted' });
-    res.json(friendship);
-  } catch (error) {
-    console.error('Accept friend request error:', error);
-    res.status(500).json({ message: 'Error accepting friend request' });
   }
 });
 
