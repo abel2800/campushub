@@ -2,51 +2,42 @@ const { User, Friend, Notification } = require('../models');
 const { Op } = require('sequelize');
 
 const friendController = {
-  // Search users to add as friends
+  // Search users
   searchUsers: async (req, res) => {
     try {
       const { query } = req.query;
       const currentUserId = req.user.id;
 
-      console.log('Search query:', query);
-      console.log('Current user ID:', currentUserId);
-
       if (!query) {
         return res.json([]);
       }
 
-      // Find users matching search query
       const users = await User.findAll({
         where: {
           [Op.and]: [
-            // Search in both username and department
             {
               [Op.or]: [
-                { username: { [Op.iLike]: `%${query}%` } },
-                { department: { [Op.iLike]: `%${query}%` } }
+                { username: { [Op.iLike]: `%${query}%` } }
               ]
             },
-            // Exclude current user
             { id: { [Op.ne]: currentUserId } }
           ]
         },
-        attributes: ['id', 'username', 'department', 'avatar'],
-        limit: 10 // Limit results to 10 users
+        attributes: ['id', 'username', 'avatar'],
+        limit: 10
       });
 
-      console.log('Found users:', users);
-
-      // Get all friend relationships for the current user
+      // Get existing friendships
       const friendships = await Friend.findAll({
         where: {
           [Op.or]: [
             { userid: currentUserId },
             { friendid: currentUserId }
           ]
-        }
+        },
+        attributes: ['userid', 'friendid', 'status']
       });
 
-      // Map users with friendship status
       const usersWithStatus = users.map(user => {
         const friendship = friendships.find(f => 
           (f.userid === user.id && f.friendid === currentUserId) ||
@@ -62,10 +53,7 @@ const friendController = {
       res.json(usersWithStatus);
     } catch (error) {
       console.error('Search users error:', error);
-      res.status(500).json({ 
-        message: 'Error searching users', 
-        error: error.message 
-      });
+      res.status(500).json({ message: 'Error searching users' });
     }
   },
 
@@ -113,11 +101,12 @@ const friendController = {
     }
   },
 
-  // Get pending friend requests
+  // Get pending requests
   getPendingRequests: async (req, res) => {
     try {
       const userId = req.user.id;
-      const requests = await Friend.findAll({
+
+      const pendingRequests = await Friend.findAll({
         where: {
           friendid: userId,
           status: 'pending'
@@ -125,21 +114,22 @@ const friendController = {
         include: [{
           model: User,
           as: 'user',
-          attributes: ['id', 'username', 'department', 'avatar']
+          attributes: ['id', 'username', 'avatar']
         }]
       });
-      res.json(requests);
+
+      res.json(pendingRequests);
     } catch (error) {
       console.error('Get pending requests error:', error);
-      res.status(500).json({ message: 'Error fetching friend requests' });
+      res.status(500).json({ message: 'Error fetching pending requests' });
     }
   },
 
   // Accept friend request
   acceptFriendRequest: async (req, res) => {
     try {
-      const userId = req.user.id;
       const { requestId } = req.params;
+      const userId = req.user.id;
 
       const friendRequest = await Friend.findOne({
         where: {
@@ -155,10 +145,10 @@ const friendController = {
 
       await friendRequest.update({ status: 'accepted' });
 
-      // Create notification for the sender
+      // Create notification for sender
       await Notification.create({
         userId: friendRequest.userid,
-        type: 'friend_accept',
+        type: 'friend_request_accepted',
         message: `Your friend request has been accepted`,
         referenceId: friendRequest.id
       });
@@ -170,36 +160,11 @@ const friendController = {
     }
   },
 
-  // Reject friend request
-  rejectFriendRequest: async (req, res) => {
-    try {
-      const requestId = req.params.requestId;
-      const userId = req.user.id;
-
-      const request = await FriendRequest.findOne({
-        where: {
-          id: requestId,
-          receiverId: userId,
-          status: 'pending'
-        }
-      });
-
-      if (!request) {
-        return res.status(404).json({ message: 'Friend request not found' });
-      }
-
-      await request.update({ status: 'rejected' });
-      res.json({ message: 'Friend request rejected' });
-    } catch (error) {
-      console.error('Reject request error:', error);
-      res.status(500).json({ message: 'Server error' });
-    }
-  },
-
   // Get friends list
   getFriends: async (req, res) => {
     try {
       const userId = req.user.id;
+
       const friends = await Friend.findAll({
         where: {
           [Op.or]: [
@@ -208,19 +173,31 @@ const friendController = {
           ],
           status: 'accepted'
         },
-        include: [{
-          model: User,
-          as: 'friend',
-          attributes: ['id', 'username', 'department', 'avatar']
-        }]
+        include: [
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'username', 'department']
+          },
+          {
+            model: User,
+            as: 'friend',
+            attributes: ['id', 'username', 'department']
+          }
+        ]
       });
 
-      const formattedFriends = friends.map(friendship => ({
-        id: friendship.friend.id,
-        username: friendship.friend.username,
-        department: friendship.friend.department,
-        avatar: friendship.friend.avatar
-      }));
+      const formattedFriends = friends.map(friendship => {
+        const friend = friendship.userid === userId ? friendship.friend : friendship.user;
+        return {
+          id: friendship.id,
+          friend: {
+            id: friend.id,
+            username: friend.username,
+            department: friend.department
+          }
+        };
+      });
 
       res.json(formattedFriends);
     } catch (error) {
@@ -233,49 +210,55 @@ const friendController = {
   removeFriend: async (req, res) => {
     try {
       const userId = req.user.id;
-      const friendId = req.params.friendId;
+      const { friendId } = req.params;
 
-      await Friend.destroy({
+      const friendship = await Friend.findOne({
         where: {
           [Op.or]: [
             { userid: userId, friendid: friendId },
             { userid: friendId, friendid: userId }
-          ]
+          ],
+          status: 'accepted'
         }
       });
+
+      if (!friendship) {
+        return res.status(404).json({ message: 'Friendship not found' });
+      }
+
+      await friendship.destroy();
 
       res.json({ message: 'Friend removed successfully' });
     } catch (error) {
       console.error('Remove friend error:', error);
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Error removing friend' });
     }
   },
 
-  // Search friends
-  searchFriends: async (req, res) => {
+  // Reject friend request
+  rejectFriendRequest: async (req, res) => {
     try {
+      const { requestId } = req.params;
       const userId = req.user.id;
-      const { query } = req.query;
 
-      const friends = await Friend.findAll({
-        where: { userId },
-        include: [{
-          model: User,
-          as: 'friend',
-          where: {
-            [Op.or]: [
-              { username: { [Op.iLike]: `%${query}%` } },
-              { department: { [Op.iLike]: `%${query}%` } }
-            ]
-          },
-          attributes: ['id', 'username', 'department']
-        }]
+      const friendRequest = await Friend.findOne({
+        where: {
+          id: requestId,
+          friendid: userId,
+          status: 'pending'
+        }
       });
 
-      res.json(friends.map(f => f.friend));
+      if (!friendRequest) {
+        return res.status(404).json({ message: 'Friend request not found' });
+      }
+
+      await friendRequest.destroy();
+
+      res.json({ message: 'Friend request rejected' });
     } catch (error) {
-      console.error('Search friends error:', error);
-      res.status(500).json({ message: 'Server error' });
+      console.error('Reject friend request error:', error);
+      res.status(500).json({ message: 'Error rejecting friend request' });
     }
   }
 };

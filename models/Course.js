@@ -12,12 +12,9 @@ module.exports = (sequelize, DataTypes) => {
     description: {
       type: DataTypes.TEXT
     },
-    instructorId: {
-      type: DataTypes.INTEGER,
-      allowNull: false
-    },
     thumbnail: {
-      type: DataTypes.STRING
+      type: DataTypes.STRING,
+      defaultValue: '/courses/java/thumbnail.jpg'
     },
     totalVideos: {
       type: DataTypes.INTEGER,
@@ -26,10 +23,13 @@ module.exports = (sequelize, DataTypes) => {
     totalDuration: {
       type: DataTypes.INTEGER,
       defaultValue: 0
+    },
+    instructorId: {
+      type: DataTypes.INTEGER,
+      allowNull: false
     }
   }, {
-    tableName: 'Courses',
-    timestamps: true
+    tableName: 'Courses'
   });
 
   Course.associate = (models) => {
@@ -44,10 +44,6 @@ module.exports = (sequelize, DataTypes) => {
     Course.hasMany(models.CourseEnrollment, {
       foreignKey: 'courseId',
       as: 'enrollments'
-    });
-    Course.belongsToMany(models.User, {
-      through: 'CourseEnrollments',
-      as: 'students'
     });
   };
 

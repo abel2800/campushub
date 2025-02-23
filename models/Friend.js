@@ -8,6 +8,7 @@ module.exports = (sequelize, DataTypes) => {
     userid: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      field: 'userid',
       references: {
         model: 'Users',
         key: 'id'
@@ -16,6 +17,7 @@ module.exports = (sequelize, DataTypes) => {
     friendid: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      field: 'friendid',
       references: {
         model: 'Users',
         key: 'id'
@@ -30,7 +32,7 @@ module.exports = (sequelize, DataTypes) => {
     }
   }, {
     tableName: 'Friends',
-    timestamps: true // This will add createdAt and updatedAt columns
+    timestamps: true
   });
 
   Friend.associate = (models) => {
@@ -43,6 +45,23 @@ module.exports = (sequelize, DataTypes) => {
       as: 'friend'
     });
   };
+
+  Friend.beforeCreate(async (friendship) => {
+    const { Op } = require('sequelize');
+    // Check if friendship already exists
+    const existingFriendship = await friendship.constructor.findOne({
+      where: {
+        [Op.or]: [
+          { userid: friendship.userid, friendid: friendship.friendid },
+          { userid: friendship.friendid, friendid: friendship.userid }
+        ]
+      }
+    });
+
+    if (existingFriendship) {
+      throw new Error('Friendship already exists');
+    }
+  });
 
   return Friend;
 };

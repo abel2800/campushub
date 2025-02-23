@@ -7,7 +7,11 @@ module.exports = (sequelize, DataTypes) => {
     },
     user_id: {
       type: DataTypes.INTEGER,
-      allowNull: false
+      allowNull: false,
+      references: {
+        model: 'Users',
+        key: 'id'
+      }
     },
     media_url: {
       type: DataTypes.TEXT,
@@ -18,7 +22,8 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 'image'
     },
     expires_at: {
-      type: DataTypes.DATE
+      type: DataTypes.DATE,
+      allowNull: false
     }
   }, {
     tableName: 'Stories',
@@ -34,4 +39,4 @@ module.exports = (sequelize, DataTypes) => {
   };
 
   return Story;
-}; 
+};

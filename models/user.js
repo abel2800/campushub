@@ -25,25 +25,59 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     department: {
-      type: DataTypes.STRING,
-      allowNull: true
+      type: DataTypes.STRING
     },
     avatar: {
-      type: DataTypes.STRING,
-      allowNull: true
+      type: DataTypes.STRING
     }
   }, {
-    tableName: 'Users',
-    timestamps: true
+    tableName: 'Users'
   });
 
   User.associate = function(models) {
-    User.hasMany(models.Course, { foreignKey: 'instructorId', as: 'courses' });
-    User.belongsToMany(models.Course, { through: 'Enrollments', as: 'enrolledCourses' });
-    User.hasMany(models.Story, { foreignKey: 'userId', as: 'stories' });
-    User.hasMany(models.Chat, { foreignKey: 'user1Id', as: 'chatsInitiated' });
-    User.hasMany(models.Chat, { foreignKey: 'user2Id', as: 'chatsReceived' });
-    User.hasMany(models.Message, { foreignKey: 'senderId', as: 'messages' });
+    // Courses created by the user (as instructor)
+    User.hasMany(models.Course, {
+      foreignKey: 'instructorId',
+      as: 'coursesCreated'
+    });
+
+    // Courses enrolled in (as student)
+    User.hasMany(models.CourseEnrollment, {
+      foreignKey: 'userId',
+      as: 'enrollments'
+    });
+
+    // Posts created by the user
+    User.hasMany(models.Post, {
+      foreignKey: 'userId',
+      as: 'posts'
+    });
+
+    // Comments made by the user
+    User.hasMany(models.Comment, {
+      foreignKey: 'userId',
+      as: 'comments'
+    });
+
+    // Friends relationships
+    User.belongsToMany(models.User, {
+      through: models.Friend,
+      as: 'friends',
+      foreignKey: 'userId',
+      otherKey: 'friendId'
+    });
+
+    // Messages sent by the user
+    User.hasMany(models.Message, {
+      foreignKey: 'senderId',
+      as: 'messagesSent'
+    });
+
+    // Messages received by the user
+    User.hasMany(models.Message, {
+      foreignKey: 'receiverId',
+      as: 'messagesReceived'
+    });
   };
 
   return User;

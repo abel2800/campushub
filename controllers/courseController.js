@@ -7,11 +7,18 @@ const courseController = {
   getAllCourses: async (req, res) => {
     try {
       const courses = await Course.findAll({
-        include: [{
-          model: CourseVideo,
-          as: 'videos',
-          attributes: ['id']
-        }],
+        include: [
+          {
+            model: User,
+            as: 'instructor',
+            attributes: ['id', 'username']
+          },
+          {
+            model: CourseVideo,
+            as: 'videos',
+            attributes: ['id']
+          }
+        ],
         attributes: [
           'id',
           'title',
@@ -22,14 +29,14 @@ const courseController = {
         ]
       });
 
-      // Transform the data to include video count
       const transformedCourses = courses.map(course => ({
         id: course.id,
         title: course.title,
         description: course.description,
         thumbnail: course.thumbnail,
-        totalVideos: course.totalVideos,
-        totalDuration: course.totalDuration
+        totalVideos: course.videos.length,
+        totalDuration: course.totalDuration,
+        instructor: course.instructor ? course.instructor.username : 'Unknown Instructor'
       }));
 
       res.json(transformedCourses);

@@ -12,4 +12,4 @@ router.get('/feed', postController.getFeed);
 router.post('/:postId/like', postController.likePost);
 router.post('/:postId/comment', postController.addComment);
 
-module.exports = router; 
+module.exports = router;

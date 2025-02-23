@@ -9,10 +9,12 @@ const friendRoutes = require('./routes/friendRoutes');
 const userRoutes = require('./routes/userRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const storyRoutes = require('./routes/storyRoutes');
+const courseRoutes = require('./routes/courseRoutes');
 const authMiddleware = require('./middleware/authMiddleware');
 const jwt = require('jsonwebtoken');
 const path = require('path');
-const courseRoutes = require('./routes/courseRoutes');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
@@ -32,17 +34,35 @@ app.use(cors({
   origin: "http://localhost:3000",
   credentials: true
 }));
-app.use(express.json()); // Parse JSON request bodies
+app.use(express.json());
 
-// Serve static files from the "public" directory
-app.use('/courses', express.static(path.join(__dirname, '../public/courses')));
+// Create upload directories if they don't exist
+const uploadDirs = ['uploads/stories', 'uploads/posts'];
+uploadDirs.forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+});
+
+// Serve static files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Add these middleware configurations
+app.use('/uploads/videos', express.static(path.join(__dirname, 'uploads/videos')));
+
+// Create videos directory if it doesn't exist
+const videoDir = path.join(__dirname, 'uploads/videos');
+if (!fs.existsSync(videoDir)) {
+  fs.mkdirSync(videoDir, { recursive: true });
+}
 
 // Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/friends', friendRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/messages', messageRoutes);
+app.use('/api/friends', authMiddleware, friendRoutes);
+app.use('/api/users', authMiddleware, userRoutes);
+app.use('/api/notifications', authMiddleware, notificationRoutes);
+app.use('/api/messages', authMiddleware, messageRoutes);
+app.use('/api/stories', authMiddleware, storyRoutes);
 app.use('/api/courses', courseRoutes);
 
 // Socket.IO middleware for authentication

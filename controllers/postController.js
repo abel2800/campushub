@@ -1,15 +1,14 @@
 const { Post, User, Comment, Like } = require('../models');
 const multer = require('multer');
 const path = require('path');
-const { uploadToS3 } = require('../utils/s3Upload'); // You'll need to implement this
 
-// Configure multer for image upload
+// Configure multer for post upload
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/posts');
+    cb(null, 'uploads/posts'); // Save files in the 'uploads/posts' directory
   },
   filename: (req, file, cb) => {
-    cb(null, `post-${Date.now()}${path.extname(file.originalname)}`);
+    cb(null, `post-${Date.now()}${path.extname(file.originalname)}`); // Unique filename
   }
 });
 
@@ -23,7 +22,8 @@ const postController = {
       let imageUrl = null;
 
       if (req.file) {
-        imageUrl = await uploadToS3(req.file);
+        // Save the file path relative to the backend directory
+        imageUrl = `/uploads/posts/${req.file.filename}`;
       }
 
       const post = await Post.create({
@@ -42,6 +42,7 @@ const postController = {
   getFeed: async (req, res) => {
     try {
       const userId = req.user.id;
+
       const posts = await Post.findAll({
         include: [
           {
@@ -124,4 +125,4 @@ const postController = {
   }
 };
 
-module.exports = { postController, upload }; 
+module.exports = { postController, upload };

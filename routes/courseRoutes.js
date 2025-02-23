@@ -3,11 +3,11 @@ const router = express.Router();
 const courseController = require('../controllers/courseController');
 const auth = require('../middleware/authMiddleware');
 
-// Apply auth middleware to all routes
-router.use(auth);
-
-// Get all available courses
+// Get all available courses (make this public)
 router.get('/', courseController.getAllCourses);
+
+// Protected routes
+router.use(auth);  // Apply auth middleware to routes below
 
 // Get enrolled courses for current user
 router.get('/enrolled', courseController.getEnrolledCourses);

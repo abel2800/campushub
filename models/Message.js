@@ -23,7 +23,19 @@ module.exports = (sequelize, DataTypes) => {
     },
     content: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: true
+    },
+    attachment_url: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
+    attachment_type: {
+      type: DataTypes.ENUM('image', 'video', 'file'),
+      allowNull: true
+    },
+    read: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
     }
   }, {
     tableName: 'Messages',
@@ -33,12 +45,12 @@ module.exports = (sequelize, DataTypes) => {
 
   Message.associate = (models) => {
     Message.belongsTo(models.User, {
-      as: 'sender',
-      foreignKey: 'sender_id'
+      foreignKey: 'sender_id',
+      as: 'sender'
     });
     Message.belongsTo(models.User, {
-      as: 'receiver',
-      foreignKey: 'receiver_id'
+      foreignKey: 'receiver_id',
+      as: 'receiver'
     });
   };
 

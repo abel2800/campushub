@@ -18,10 +18,11 @@ module.exports = (sequelize, DataTypes) => {
       },
       videoUrl: {
         type: DataTypes.STRING,
-        get() {
-          const rawValue = this.getDataValue('videoUrl');
-          return rawValue ? `/courses/${rawValue}` : null;
-        }
+        allowNull: false
+      },
+      thumbnail: {
+        type: DataTypes.STRING,
+        defaultValue: '/courses/java/thumbnail.jpg' // Use the same thumbnail
       },
       duration: {
         type: DataTypes.INTEGER

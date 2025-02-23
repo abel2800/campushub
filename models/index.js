@@ -19,7 +19,7 @@ if (config.use_env_variable) {
   );
 }
 
-// Read all model files
+// First, read and define all models
 fs.readdirSync(__dirname)
   .filter(file => {
     return (
@@ -34,7 +34,7 @@ fs.readdirSync(__dirname)
     db[model.name] = model;
   });
 
-// Initialize associations after all models are loaded
+// Then, run all associations after all models are defined
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
