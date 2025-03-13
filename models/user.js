@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+'use strict';
 
 module.exports = (sequelize, DataTypes) => {
   const User = sequelize.define('User', {
@@ -15,28 +15,68 @@ module.exports = (sequelize, DataTypes) => {
     email: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true
+      unique: true,
+      validate: {
+        isEmail: true
+      }
     },
     password: {
       type: DataTypes.STRING,
       allowNull: false
     },
     department: {
-      type: DataTypes.STRING,
-      allowNull: true
+      type: DataTypes.STRING
+    },
+    avatar: {
+      type: DataTypes.STRING
     }
   }, {
-    tableName: 'Users'  // Make sure this matches your actual table name
+    tableName: 'Users'
   });
 
-  User.associate = (models) => {
-    User.hasMany(models.FriendRequest, {
-      foreignKey: 'receiverId',
-      as: 'receivedRequests'
+  User.associate = function(models) {
+    // Courses created by the user (as instructor)
+    User.hasMany(models.Course, {
+      foreignKey: 'instructorId',
+      as: 'coursesCreated'
     });
-    User.hasMany(models.FriendRequest, {
+
+    // Courses enrolled in (as student)
+    User.hasMany(models.CourseEnrollment, {
+      foreignKey: 'userId',
+      as: 'enrollments'
+    });
+
+    // Posts created by the user
+    User.hasMany(models.Post, {
+      foreignKey: 'userId',
+      as: 'posts'
+    });
+
+    // Comments made by the user
+    User.hasMany(models.Comment, {
+      foreignKey: 'userId',
+      as: 'comments'
+    });
+
+    // Friends relationships
+    User.belongsToMany(models.User, {
+      through: models.Friend,
+      as: 'friends',
+      foreignKey: 'userId',
+      otherKey: 'friendId'
+    });
+
+    // Messages sent by the user
+    User.hasMany(models.Message, {
       foreignKey: 'senderId',
-      as: 'sentRequests'
+      as: 'messagesSent'
+    });
+
+    // Messages received by the user
+    User.hasMany(models.Message, {
+      foreignKey: 'receiverId',
+      as: 'messagesReceived'
     });
   };
 

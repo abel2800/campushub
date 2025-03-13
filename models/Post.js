@@ -5,7 +5,7 @@ module.exports = (sequelize, DataTypes) => {
       primaryKey: true,
       autoIncrement: true
     },
-    userId: {
+    user_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
@@ -14,12 +14,10 @@ module.exports = (sequelize, DataTypes) => {
       }
     },
     caption: {
-      type: DataTypes.TEXT,
-      allowNull: false
+      type: DataTypes.TEXT
     },
-    imageUrl: {
-      type: DataTypes.STRING,
-      allowNull: true
+    image_url: {
+      type: DataTypes.TEXT
     },
     likesCount: {
       type: DataTypes.INTEGER,
@@ -30,22 +28,23 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: 0
     }
   }, {
-    tableName: 'posts',
-    timestamps: true
+    tableName: 'Posts',
+    timestamps: true,
+    underscored: true
   });
 
   Post.associate = (models) => {
     Post.belongsTo(models.User, {
-      foreignKey: 'userId',
+      foreignKey: 'user_id',
       as: 'user'
     });
-    Post.hasMany(models.Comment, {
-      foreignKey: 'postId',
-      as: 'comments'
-    });
     Post.hasMany(models.Like, {
-      foreignKey: 'postId',
+      foreignKey: 'post_id',
       as: 'likes'
+    });
+    Post.hasMany(models.Comment, {
+      foreignKey: 'post_id',
+      as: 'comments'
     });
   };
 

@@ -73,4 +73,6 @@ router.get('/verify', authMiddleware, async (req, res) => {
   }
 });
 
+router.post('/refresh-token', authController.refreshToken);
+
 module.exports = router; 

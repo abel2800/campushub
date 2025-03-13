@@ -1,5 +1,19 @@
 const { Message, User } = require('../models');
 const { Op } = require('sequelize');
+const multer = require('multer');
+const path = require('path');
+
+// Configure multer for message attachments
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/messages');
+  },
+  filename: (req, file, cb) => {
+    cb(null, `message-${Date.now()}${path.extname(file.originalname)}`);
+  }
+});
+
+const upload = multer({ storage });
 
 const messageController = {
   getMessages: async (req, res) => {
@@ -59,32 +73,72 @@ const messageController = {
 
   sendMessage: async (req, res) => {
     try {
-      const userId = req.user.id;
-      const { participantId, content } = req.body;
+      const { receiverId, content } = req.body;
+      const senderId = req.user.id;
+      let attachmentUrl = null;
+      let attachmentType = null;
+
+      if (req.file) {
+        attachmentUrl = `/uploads/messages/${req.file.filename}`;
+        attachmentType = req.file.mimetype.startsWith('image/') ? 'image' : 
+                        req.file.mimetype.startsWith('video/') ? 'video' : 'file';
+      }
 
       const message = await Message.create({
-        sender_id: userId,
-        receiver_id: participantId,
-        content
+        sender_id: senderId,
+        receiver_id: receiverId,
+        content,
+        attachment_url: attachmentUrl,
+        attachment_type: attachmentType
       });
 
       const messageWithUser = await Message.findOne({
         where: { id: message.id },
-        include: [{
-          model: User,
-          as: 'sender',
-          attributes: ['id', 'username', 'department']
-        }]
+        include: [
+          {
+            model: User,
+            as: 'sender',
+            attributes: ['id', 'username', 'avatar']
+          }
+        ]
       });
 
-      if (req.app.io) {
-        req.app.io.to(`user_${participantId}`).emit('new_message', messageWithUser);
-      }
+      // Emit socket event for real-time messaging
+      req.app.io.to(`user_${receiverId}`).emit('new_message', messageWithUser);
 
-      res.json(messageWithUser);
+      res.status(201).json(messageWithUser);
     } catch (error) {
       console.error('Send message error:', error);
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Error sending message' });
+    }
+  },
+
+  getMessageHistory: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { friendId } = req.params;
+
+      const messages = await Message.findAll({
+        where: {
+          [Op.or]: [
+            { sender_id: userId, receiver_id: friendId },
+            { sender_id: friendId, receiver_id: userId }
+          ]
+        },
+        include: [
+          {
+            model: User,
+            as: 'sender',
+            attributes: ['id', 'username', 'avatar']
+          }
+        ],
+        order: [['created_at', 'ASC']]
+      });
+
+      res.json(messages);
+    } catch (error) {
+      console.error('Get message history error:', error);
+      res.status(500).json({ message: 'Error fetching message history' });
     }
   },
 
@@ -92,7 +146,8 @@ const messageController = {
     try {
       const userId = req.user.id;
 
-      const messages = await Message.findAll({
+      // Get the most recent message from each conversation
+      const recentChats = await Message.findAll({
         where: {
           [Op.or]: [
             { sender_id: userId },
@@ -103,35 +158,24 @@ const messageController = {
           {
             model: User,
             as: 'sender',
-            attributes: ['id', 'username', 'department']
+            attributes: ['id', 'username', 'avatar']
           },
           {
             model: User,
             as: 'receiver',
-            attributes: ['id', 'username', 'department']
+            attributes: ['id', 'username', 'avatar']
           }
         ],
-        order: [['created_at', 'DESC']]
+        order: [['created_at', 'DESC']],
+        group: ['sender_id', 'receiver_id'],
       });
 
-      // Group messages by conversation
-      const chatMap = new Map();
-      messages.forEach(message => {
-        const otherUser = message.sender_id === userId ? message.receiver : message.sender;
-        if (!chatMap.has(otherUser.id)) {
-          chatMap.set(otherUser.id, {
-            participant: otherUser,
-            lastMessage: message
-          });
-        }
-      });
-
-      res.json(Array.from(chatMap.values()));
+      res.json(recentChats);
     } catch (error) {
       console.error('Get recent chats error:', error);
-      res.status(500).json({ message: 'Server error' });
+      res.status(500).json({ message: 'Error fetching recent chats' });
     }
   }
 };
 
-module.exports = messageController; 
+module.exports = { messageController, upload }; 

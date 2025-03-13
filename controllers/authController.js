@@ -67,72 +67,40 @@ const authController = {
   login: async (req, res) => {
     try {
       const { email, password } = req.body;
+      console.log('Login attempt:', { email });
 
-      // Validation
-      if (!email || !password) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email and password are required'
-        });
-      }
-
-      // Find user
-      const user = await User.findOne({
-        where: { email: email.toLowerCase() },
-        attributes: ['id', 'username', 'email', 'password', 'department']
-      });
-
-      // Debug log
-      console.log('Login attempt:', {
-        emailProvided: email,
-        userFound: !!user
+      const user = await User.findOne({ 
+        where: { email },
+        attributes: ['id', 'email', 'password', 'username', 'department'] 
       });
 
       if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid email or password'
-        });
+        return res.status(401).json({ message: 'Invalid credentials' });
       }
 
-      // Compare password
       const isValidPassword = await bcrypt.compare(password, user.password);
-      
-      // Debug log
-      console.log('Password check:', {
-        isValid: isValidPassword
-      });
-
       if (!isValidPassword) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid email or password'
-        });
+        return res.status(401).json({ message: 'Invalid credentials' });
       }
 
-      // Create token
       const token = jwt.sign(
         { id: user.id },
-        process.env.JWT_SECRET || 'your-fallback-secret',
+        process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
 
-      // Remove sensitive data
-      const { password: _, ...userWithoutPassword } = user.toJSON();
-
       res.json({
-        success: true,
         token,
-        user: userWithoutPassword
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          department: user.department
+        }
       });
-
     } catch (error) {
       console.error('Login error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
-      });
+      res.status(500).json({ message: 'Error logging in' });
     }
   },
 
@@ -171,6 +139,32 @@ const authController = {
       res.json({ user });
     } catch (error) {
       console.error('Token verification error:', error);
+      res.status(401).json({ message: 'Invalid token' });
+    }
+  },
+
+  // Refresh token
+  refreshToken: async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      
+      if (!token) {
+        return res.status(401).json({ message: 'No token provided' });
+      }
+
+      // Verify the existing token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET, { ignoreExpiration: true });
+      
+      // Generate a new token
+      const newToken = jwt.sign(
+        { id: decoded.id },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      res.json({ token: newToken });
+    } catch (error) {
+      console.error('Refresh token error:', error);
       res.status(401).json({ message: 'Invalid token' });
     }
   }

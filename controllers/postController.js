@@ -2,13 +2,13 @@ const { Post, User, Comment, Like } = require('../models');
 const multer = require('multer');
 const path = require('path');
 
-// Configure multer for image upload
+// Configure multer for post upload
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/posts');
+    cb(null, 'uploads/posts'); // Save files in the 'uploads/posts' directory
   },
   filename: (req, file, cb) => {
-    cb(null, `post-${Date.now()}${path.extname(file.originalname)}`);
+    cb(null, `post-${Date.now()}${path.extname(file.originalname)}`); // Unique filename
   }
 });
 
@@ -22,27 +22,17 @@ const postController = {
       let imageUrl = null;
 
       if (req.file) {
+        // Save the file path relative to the backend directory
         imageUrl = `/uploads/posts/${req.file.filename}`;
       }
 
       const post = await Post.create({
-        userId,
+        user_id: userId,
         caption,
-        imageUrl
+        image_url: imageUrl
       });
 
-      const postWithUser = await Post.findOne({
-        where: { id: post.id },
-        include: [
-          {
-            model: User,
-            as: 'user',
-            attributes: ['id', 'username', 'avatarUrl']
-          }
-        ]
-      });
-
-      res.status(201).json(postWithUser);
+      res.status(201).json(post);
     } catch (error) {
       console.error('Create post error:', error);
       res.status(500).json({ message: 'Error creating post' });
@@ -51,12 +41,18 @@ const postController = {
 
   getFeed: async (req, res) => {
     try {
+      const userId = req.user.id;
+
       const posts = await Post.findAll({
         include: [
           {
             model: User,
             as: 'user',
-            attributes: ['id', 'username', 'avatarUrl']
+            attributes: ['id', 'username']
+          },
+          {
+            model: Like,
+            as: 'likes'
           },
           {
             model: Comment,
@@ -65,22 +61,18 @@ const postController = {
               {
                 model: User,
                 as: 'user',
-                attributes: ['id', 'username', 'avatarUrl']
+                attributes: ['id', 'username']
               }
             ]
-          },
-          {
-            model: Like,
-            as: 'likes'
           }
         ],
-        order: [['createdAt', 'DESC']]
+        order: [['created_at', 'DESC']]
       });
 
       res.json(posts);
     } catch (error) {
       console.error('Get feed error:', error);
-      res.status(500).json({ message: 'Error fetching posts' });
+      res.status(500).json({ message: 'Error fetching feed' });
     }
   },
 
@@ -89,22 +81,15 @@ const postController = {
       const { postId } = req.params;
       const userId = req.user.id;
 
-      const existingLike = await Like.findOne({
-        where: { postId, userId }
+      await Like.create({
+        user_id: userId,
+        post_id: postId
       });
 
-      if (existingLike) {
-        await existingLike.destroy();
-        await Post.decrement('likesCount', { where: { id: postId } });
-      } else {
-        await Like.create({ postId, userId });
-        await Post.increment('likesCount', { where: { id: postId } });
-      }
-
-      res.json({ message: 'Like updated successfully' });
+      res.json({ message: 'Post liked successfully' });
     } catch (error) {
       console.error('Like post error:', error);
-      res.status(500).json({ message: 'Error updating like' });
+      res.status(500).json({ message: 'Error liking post' });
     }
   },
 
@@ -140,4 +125,4 @@ const postController = {
   }
 };
 
-module.exports = { postController, upload }; 
+module.exports = { postController, upload };

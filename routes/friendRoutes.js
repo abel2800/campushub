@@ -1,53 +1,30 @@
-// Inside friendRoutes.js or userRoutes.js
 const express = require('express');
 const router = express.Router();
-const { Op } = require('sequelize');
-const { User, Friend } = require('../models');
-const authMiddleware = require('../middleware/authMiddleware');
+const auth = require('../middleware/authMiddleware');
 const friendController = require('../controllers/friendController');
 
 // Apply auth middleware to all routes
-router.use(authMiddleware);
+router.use(auth);
 
-// Search users by username or department
-router.get('/search', async (req, res) => {
-  try {
-    const { query } = req.query;
-    const userId = req.user.id;
+// Search users route
+router.get('/search', friendController.searchUsers);
 
-    const friends = await Friend.findAll({
-      where: { userId },
-      include: [{
-        model: User,
-        as: 'friend',
-        where: {
-          [Op.or]: [
-            { username: { [Op.iLike]: `%${query}%` } },
-            { department: { [Op.iLike]: `%${query}%` } }
-          ]
-        },
-        attributes: ['id', 'username', 'department']
-      }]
-    });
+// Send friend request
+router.post('/request', friendController.sendFriendRequest);
 
-    res.json(friends.map(f => f.friend));
-  } catch (error) {
-    console.error('Search friends error:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Friend requests routes
+// Get pending friend requests
 router.get('/requests/pending', friendController.getPendingRequests);
-router.post('/requests', friendController.sendRequest);
-router.post('/requests/:requestId/accept', friendController.acceptRequest);
-router.post('/requests/:requestId/reject', friendController.rejectRequest);
 
-// Friends management routes
-router.get('/', friendController.getFriends);
+// Accept friend request
+router.post('/request/:requestId/accept', friendController.acceptFriendRequest);
+
+// Reject friend request
+router.post('/request/:requestId/reject', friendController.rejectFriendRequest);
+
+// Get friends list
+router.get('/list', friendController.getFriends);
+
+// Remove friend
 router.delete('/:friendId', friendController.removeFriend);
-
-// Add this route to your existing friendRoutes
-router.get('/search', friendController.searchFriends);
 
 module.exports = router;

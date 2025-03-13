@@ -4,7 +4,7 @@ const Sequelize = require('sequelize');
 const process = require('process');
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
-const config = require('../config/config')[env];
+const config = require(__dirname + '/../config/config.json')[env];
 const db = {};
 
 let sequelize;
@@ -19,7 +19,7 @@ if (config.use_env_variable) {
   );
 }
 
-// Read model files
+// First, read and define all models
 fs.readdirSync(__dirname)
   .filter(file => {
     return (
@@ -34,7 +34,7 @@ fs.readdirSync(__dirname)
     db[model.name] = model;
   });
 
-// Set up associations
+// Then, run all associations after all models are defined
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
